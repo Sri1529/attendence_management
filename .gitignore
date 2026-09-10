@@ -1,0 +1,31 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Next.js & Build outputs
+.next/
+client/.next/
+out/
+build/
+dist/
+server/dist/
+
+# Environment files
+.env
+.env*.local
+client/.env*.local
+server/.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# IDE & Tooling
+.vscode/
+.idea/

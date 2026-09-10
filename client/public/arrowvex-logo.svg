@@ -1,0 +1,26 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- ARROWVEX Coiled Arrow Mark -->
+  <g transform="translate(40, 20)">
+    <!-- Main Loop Body -->
+    <path
+      d="M140 280 C110 240 100 190 120 150 C145 100 230 100 250 150 C270 200 160 240 135 180 C110 120 170 60 215 50"
+      stroke="black"
+      stroke-width="26"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <!-- Arrowhead -->
+    <path
+      d="M175 80 L228 44 L232 102"
+      stroke="black"
+      stroke-width="26"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+  
+  <!-- ARROWVEX Brand Text -->
+  <text x="200" y="360" font-family="'Outfit', 'Inter', system-ui, sans-serif" font-weight="900" font-size="44" letter-spacing="4" fill="black" text-anchor="middle">
+    ARROWVEX
+  </text>
+</svg>
