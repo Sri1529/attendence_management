@@ -14,6 +14,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "PayPilot — Attendance & Payroll Management by ArrowVex",
   description: "Modern Multi-Tenant Attendance and Payroll Management System by ArrowVex",
+  icons: {
+    icon: "/arrowvex-logo.png",
+    shortcut: "/arrowvex-logo.png",
+    apple: "/arrowvex-logo.png",
+  },
 };
 
 export default function RootLayout({

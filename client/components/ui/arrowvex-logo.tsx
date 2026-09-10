@@ -41,24 +41,26 @@ export const ArrowvexIcon: React.FC<ArrowvexIconProps> = ({
     return (
       <svg
         className={cn("shrink-0 text-primary transition-colors", svgSizeMap[size], className)}
-        viewBox="0 0 100 100"
+        viewBox="0 0 400 320"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
-        <path
-          d="M42 82 C32 70 28 55 35 42 C42 27 68 27 75 42 C82 57 50 68 42 50 C34 32 52 16 66 14"
-          stroke="currentColor"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M52 23 L70 12 L71 30"
-          stroke="currentColor"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <g transform="translate(10, -10)">
+          <path
+            d="M140 280 C110 240 100 190 120 150 C145 100 230 100 250 150 C270 200 160 240 135 180 C110 120 170 60 215 50"
+            stroke="currentColor"
+            strokeWidth="28"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M175 80 L228 44 L232 102"
+            stroke="currentColor"
+            strokeWidth="28"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
       </svg>
     );
   }
@@ -73,24 +75,26 @@ export const ArrowvexIcon: React.FC<ArrowvexIconProps> = ({
     >
       <svg
         className={cn("drop-shadow-xs", svgSizeMap[size])}
-        viewBox="0 0 100 100"
+        viewBox="0 0 400 320"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
-        <path
-          d="M42 82 C32 70 28 55 35 42 C42 27 68 27 75 42 C82 57 50 68 42 50 C34 32 52 16 66 14"
-          stroke="currentColor"
-          strokeWidth="8.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M52 23 L70 12 L71 30"
-          stroke="currentColor"
-          strokeWidth="8.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <g transform="translate(10, -10)">
+          <path
+            d="M140 280 C110 240 100 190 120 150 C145 100 230 100 250 150 C270 200 160 240 135 180 C110 120 170 60 215 50"
+            stroke="currentColor"
+            strokeWidth="28"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M175 80 L228 44 L232 102"
+            stroke="currentColor"
+            strokeWidth="28"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
       </svg>
     </div>
   );
