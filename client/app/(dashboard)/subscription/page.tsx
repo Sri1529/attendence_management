@@ -419,14 +419,14 @@ export default function SubscriptionPage() {
         </div>
       )}
 
-      {/* Section 1: Current Subscription Card */}
+      {/* Section 1: Current Subscription & Usage Summary Card */}
       <Card className="border-primary/20">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-primary" /> Current Subscription Context
+              <CreditCard className="w-5 h-5 text-primary" /> Current Subscription & Usage Context
             </CardTitle>
-            <CardDescription>Active billing cycle & plan parameters</CardDescription>
+            <CardDescription>Active plan status, limits, and resource consumption</CardDescription>
           </div>
 
           {subscription?.status === SubscriptionStatus.ACTIVE && (
@@ -443,7 +443,7 @@ export default function SubscriptionPage() {
             </Can>
           )}
 
-          {!subscription && (
+          {(!subscription || subscription?.status === SubscriptionStatus.EXPIRED) && (
             <Can permission={PermissionCode.SUBSCRIPTION_MANAGE}>
               <Button
                 variant="primary"
@@ -456,58 +456,120 @@ export default function SubscriptionPage() {
             </Can>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           {subscription ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-xs">
-              <div>
-                <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
-                  Active Plan
-                </span>
-                <div className="text-lg font-extrabold text-foreground mt-0.5">
-                  {subscription.plan?.name || "Free Trial"}
-                </div>
-              </div>
-
-              <div>
-                <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
-                  Subscription Status
-                </span>
-                <div className="mt-1">
-                  <Badge variant={subStatusBadgeVariant(subscription.status)} showDot className="px-2.5 py-0.5">
-                    {subscription.status}
-                  </Badge>
-                </div>
-              </div>
-
-              <div>
-                <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
-                  Current Period Start
-                </span>
-                <div className="text-sm font-semibold text-foreground mt-0.5">
-                  {new Date(subscription.current_period_start).toLocaleDateString()}
-                </div>
-              </div>
-
-              <div>
-                <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
-                  Current Period End
-                </span>
-                <div className="text-sm font-semibold text-foreground mt-0.5">
-                  {new Date(subscription.current_period_end).toLocaleDateString()}
-                </div>
-              </div>
-
-              {subscription.status === SubscriptionStatus.TRIAL && (
-                <div className="md:col-span-4 p-3 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-primary font-bold">
-                    <Clock className="w-4 h-4" /> Trial Period Active
-                  </div>
-                  <span className="font-semibold text-foreground">
-                    {trialDaysRemaining} days remaining in trial
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-xs">
+                <div>
+                  <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
+                    Active Plan
                   </span>
+                  <div className="text-lg font-extrabold text-foreground mt-0.5">
+                    {subscription.plan?.name || "14-Day Free Trial"}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
+                    Subscription Status
+                  </span>
+                  <div className="mt-1">
+                    <Badge variant={subStatusBadgeVariant(subscription.status)} showDot className="px-2.5 py-0.5">
+                      {subscription.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
+                    Current Period Start
+                  </span>
+                  <div className="text-sm font-semibold text-foreground mt-0.5">
+                    {subscription.currentPeriodStart || subscription.current_period_start
+                      ? new Date(subscription.currentPeriodStart || subscription.current_period_start!).toLocaleDateString()
+                      : "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="uppercase text-[10px] text-muted-foreground font-bold tracking-wider">
+                    Current Period End
+                  </span>
+                  <div className="text-sm font-semibold text-foreground mt-0.5">
+                    {subscription.currentPeriodEnd || subscription.current_period_end
+                      ? new Date(subscription.currentPeriodEnd || subscription.current_period_end!).toLocaleDateString()
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Resource Usage Summary Progress Bars */}
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-foreground flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-primary" /> Active Employee Limit
+                    </span>
+                    <span className="font-mono text-muted-foreground font-semibold">
+                      {subscription.activeEmployeeCount ?? 0} / {subscription.maxEmployees ?? 25}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-secondary border border-border overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        (subscription.employeeUsagePercentage ?? 0) >= 100
+                          ? "bg-danger"
+                          : (subscription.employeeUsagePercentage ?? 0) >= 80
+                          ? "bg-warning"
+                          : "bg-primary"
+                      }`}
+                      style={{ width: `${Math.min(100, subscription.employeeUsagePercentage ?? 0)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-foreground flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-primary" /> Active User Limit
+                    </span>
+                    <span className="font-mono text-muted-foreground font-semibold">
+                      {subscription.activeUserCount ?? 0} / {subscription.maxUsers ?? 5}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-secondary border border-border overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        (subscription.userUsagePercentage ?? 0) >= 100
+                          ? "bg-danger"
+                          : (subscription.userUsagePercentage ?? 0) >= 80
+                          ? "bg-warning"
+                          : "bg-primary"
+                      }`}
+                      style={{ width: `${Math.min(100, subscription.userUsagePercentage ?? 0)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Trial Active Banner */}
+              {subscription.status === SubscriptionStatus.TRIAL && (
+                <div className="p-3.5 rounded-lg bg-primary/10 border border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                    <Clock className="w-4 h-4 shrink-0" /> 14-Day Free Trial Active
+                  </div>
+                  <div className="text-xs font-semibold text-foreground">
+                    Trial ends on{" "}
+                    <span className="font-bold">
+                      {subscription.trialEndAt || subscription.trial_end_at
+                        ? new Date(subscription.trialEndAt || subscription.trial_end_at!).toLocaleDateString()
+                        : "14 days"}
+                    </span>{" "}
+                    ({subscription.daysRemaining ?? trialDaysRemaining} days remaining)
+                  </div>
                 </div>
               )}
-            </div>
+            </>
           ) : (
             <div className="py-4 text-xs text-muted-foreground">
               No active subscription found. Select a plan below to activate your account.
@@ -520,9 +582,9 @@ export default function SubscriptionPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-extrabold text-foreground">Select Your SaaS Plan</h3>
+            <h3 className="text-lg font-extrabold text-foreground">Workora SaaS Subscription Plans</h3>
             <p className="text-xs text-muted-foreground">
-              All plans include complete workforce management, attendance, salary, and payroll features.
+              Choose the plan that fits your business scale. Switch between monthly and yearly billing anytime.
             </p>
           </div>
 
@@ -546,94 +608,146 @@ export default function SubscriptionPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Yearly Billing (Save)
+              Yearly Billing (Save ~16%)
             </button>
           </div>
         </div>
 
         {/* Pricing Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan) => {
-            const isCurrentPlan = subscription?.plan_id === plan.id && subscription.status === SubscriptionStatus.ACTIVE;
-            const displayPrice = interval === BillingInterval.MONTHLY ? plan.price_monthly : plan.price_yearly;
+          {plans
+            .filter((p) => {
+              if (p.billing_interval) {
+                return p.billing_interval === interval;
+              }
+              return interval === BillingInterval.MONTHLY
+                ? p.code.includes("MONTHLY") || (!p.code.includes("YEARLY") && p.code !== "FREE")
+                : p.code.includes("YEARLY");
+            })
+            .map((plan) => {
+              const isCurrentPlan =
+                subscription?.plan?.code === plan.code ||
+                (subscription?.plan_id === plan.id && subscription?.status === SubscriptionStatus.ACTIVE);
 
-            return (
-              <Card
-                key={plan.id}
-                className={`relative flex flex-col justify-between transition-all ${
-                  isCurrentPlan ? "border-primary border-2 shadow-lg" : "hover:border-primary/40"
-                }`}
-              >
-                {isCurrentPlan && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                    Current Active Plan
-                  </div>
-                )}
+              const priceVal = plan.price
+                ? parseFloat(plan.price)
+                : interval === BillingInterval.MONTHLY
+                ? parseFloat(plan.price_monthly)
+                : parseFloat(plan.price_yearly);
 
-                <CardHeader>
-                  <CardTitle className="text-lg font-extrabold">{plan.name}</CardTitle>
-                  <CardDescription className="text-xs min-h-[36px]">
-                    {plan.description || "Full SaaS features for organization operations."}
-                  </CardDescription>
+              const maxEmp = plan.max_employees || 25;
+              const maxUsr = plan.max_users || 5;
 
-                  <div className="pt-4 pb-2 border-b border-border">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black font-mono text-foreground">
-                        {formatCurrency(displayPrice)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        /{interval === BillingInterval.MONTHLY ? "mo" : "yr"}
-                      </span>
+              const activeEmpCount = subscription?.activeEmployeeCount ?? 0;
+              const activeUsrCount = subscription?.activeUserCount ?? 0;
+              const exceedsLimit = activeEmpCount > maxEmp || activeUsrCount > maxUsr;
+
+              let buttonLabel = "Subscribe";
+              if (isCurrentPlan) {
+                buttonLabel = "Current Plan";
+              } else if (exceedsLimit) {
+                buttonLabel = "Usage Exceeds Limit";
+              } else if (subscription?.status === SubscriptionStatus.ACTIVE) {
+                buttonLabel = "Switch Plan";
+              }
+
+              return (
+                <Card
+                  key={plan.id || plan.code}
+                  className={`relative flex flex-col justify-between transition-all ${
+                    isCurrentPlan ? "border-primary border-2 shadow-lg" : "hover:border-primary/40"
+                  }`}
+                >
+                  {isCurrentPlan && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                      Current Active Plan
                     </div>
-                    <span className="text-[11px] text-muted-foreground block mt-1">
-                      Includes {plan.trial_days} days trial period
-                    </span>
-                  </div>
-                </CardHeader>
+                  )}
 
-                <CardContent className="space-y-3 flex-1 text-xs">
-                  <div className="font-semibold text-foreground text-[11px] uppercase tracking-wider">
-                    Included Features:
-                  </div>
-                  <ul className="space-y-2">
-                    <li className="flex items-center gap-2 text-foreground">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>Employee Directory & HR Workspace</span>
-                    </li>
-                    <li className="flex items-center gap-2 text-foreground">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>Attendance & Leave Approvals</span>
-                    </li>
-                    <li className="flex items-center gap-2 text-foreground">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>Salary Structure & Advances Engine</span>
-                    </li>
-                    <li className="flex items-center gap-2 text-foreground">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>Monthly Automated Payroll Generation</span>
-                    </li>
-                    <li className="flex items-center gap-2 text-foreground">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>Official Payslips & PDF Statement Downloads</span>
-                    </li>
-                  </ul>
-                </CardContent>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-extrabold">{plan.name}</CardTitle>
+                    <CardDescription className="text-xs min-h-[36px]">
+                      {plan.description || "Full SaaS workforce features."}
+                    </CardDescription>
 
-                <div className="p-6 pt-0 mt-auto">
-                  <Can permission={PermissionCode.SUBSCRIPTION_MANAGE}>
-                    <Button
-                      variant={isCurrentPlan ? "outline" : "primary"}
-                      className="w-full"
-                      disabled={isCurrentPlan}
-                      onClick={() => setCheckoutPlan(plan)}
-                    >
-                      {isCurrentPlan ? "Active Plan" : `Subscribe (${interval})`}
-                    </Button>
-                  </Can>
-                </div>
-              </Card>
-            );
-          })}
+                    <div className="pt-4 pb-2 border-b border-border">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black font-mono text-foreground">
+                          {formatCurrency(priceVal)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          /{interval === BillingInterval.MONTHLY ? "month" : "year"}
+                        </span>
+                      </div>
+                      {interval === BillingInterval.YEARLY && priceVal > 0 && (
+                        <span className="text-[11px] text-emerald-500 font-semibold block mt-1">
+                          Equivalent to {formatCurrency(Math.round(priceVal / 12))}/month
+                        </span>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-3 flex-1 text-xs">
+                    <div className="p-2.5 rounded-lg bg-secondary/70 border border-border space-y-1">
+                      <div className="flex items-center justify-between font-medium">
+                        <span className="text-muted-foreground">Employee Limit:</span>
+                        <span className="font-bold text-foreground">Up to {maxEmp} active</span>
+                      </div>
+                      <div className="flex items-center justify-between font-medium">
+                        <span className="text-muted-foreground">User Limit:</span>
+                        <span className="font-bold text-foreground">Up to {maxUsr} users</span>
+                      </div>
+                    </div>
+
+                    <div className="font-semibold text-foreground text-[11px] uppercase tracking-wider pt-1">
+                      Included Features:
+                    </div>
+                    <ul className="space-y-2">
+                      {plan.features && plan.features.length > 0 ? (
+                        plan.features.map((feat, idx) => (
+                          <li key={idx} className="flex items-center gap-2 text-foreground">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>{feat}</span>
+                          </li>
+                        ))
+                      ) : (
+                        <>
+                          <li className="flex items-center gap-2 text-foreground">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>Employee Directory & HR Workspace</span>
+                          </li>
+                          <li className="flex items-center gap-2 text-foreground">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>Attendance & Leave Approvals</span>
+                          </li>
+                          <li className="flex items-center gap-2 text-foreground">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>Salary Structure & Advances Engine</span>
+                          </li>
+                          <li className="flex items-center gap-2 text-foreground">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>Monthly Automated Payroll & PDF Payslips</span>
+                          </li>
+                        </>
+                      )}
+                    </ul>
+                  </CardContent>
+
+                  <div className="p-6 pt-0 mt-auto">
+                    <Can permission={PermissionCode.SUBSCRIPTION_MANAGE}>
+                      <Button
+                        variant={isCurrentPlan ? "outline" : exceedsLimit ? "ghost" : "primary"}
+                        className="w-full"
+                        disabled={isCurrentPlan || exceedsLimit}
+                        onClick={() => setCheckoutPlan(plan)}
+                      >
+                        {buttonLabel}
+                      </Button>
+                    </Can>
+                  </div>
+                </Card>
+              );
+            })}
         </div>
       </div>
 
@@ -679,7 +793,9 @@ export default function SubscriptionPage() {
               <span className="font-mono text-primary">
                 {checkoutPlan &&
                   formatCurrency(
-                    interval === BillingInterval.MONTHLY
+                    checkoutPlan.price && parseFloat(checkoutPlan.price) > 0
+                      ? checkoutPlan.price
+                      : interval === BillingInterval.MONTHLY
                       ? checkoutPlan.price_monthly
                       : checkoutPlan.price_yearly
                   )}

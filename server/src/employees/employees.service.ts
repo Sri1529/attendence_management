@@ -13,6 +13,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto.js';
 import { EmployeeQueryDto } from './dto/employee-query.dto.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service.js';
 
 @Injectable()
 export class EmployeesService {
@@ -24,9 +25,15 @@ export class EmployeesService {
     @InjectRepository(Designation)
     private readonly designationRepository: Repository<Designation>,
     private readonly auditLogsService: AuditLogsService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(companyId: string, dto: CreateEmployeeDto, userId?: string) {
+    const targetStatus = dto.employmentStatus || EmploymentStatus.ACTIVE;
+    if (targetStatus === EmploymentStatus.ACTIVE) {
+      await this.subscriptionsService.validateEmployeeLimit(companyId);
+    }
+
     const existingCode = await this.employeeRepository.findOne({
       where: { company_id: companyId, employee_code: dto.employeeCode },
     });
@@ -230,6 +237,12 @@ export class EmployeesService {
     userId?: string,
   ) {
     const employee = await this.findOne(companyId, id);
+    if (
+      dto.employmentStatus === EmploymentStatus.ACTIVE &&
+      employee.employment_status !== EmploymentStatus.ACTIVE
+    ) {
+      await this.subscriptionsService.validateEmployeeLimit(companyId);
+    }
     employee.employment_status = dto.employmentStatus;
     const saved = await this.employeeRepository.save(employee);
 

@@ -14,7 +14,7 @@ import { Company } from '../companies/entities/company.entity.js';
 import { Role } from '../roles/entities/role.entity.js';
 import { Permission } from '../permissions/entities/permission.entity.js';
 import { Subscription, SubscriptionStatus } from '../subscriptions/entities/subscription.entity.js';
-import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity.js';
+import { SubscriptionPlan, PlanStatus } from '../subscriptions/entities/subscription-plan.entity.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -98,20 +98,29 @@ export class AuthService {
       }),
     );
 
-    const freePlan = await this.subscriptionPlanRepository.findOne({
-      where: { code: 'FREE' },
-    });
-    if (freePlan) {
-      const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 14);
+    const planToAssign =
+      (await this.subscriptionPlanRepository.findOne({
+        where: { code: 'STARTER_MONTHLY', status: PlanStatus.ACTIVE },
+      })) ||
+      (await this.subscriptionPlanRepository.findOne({
+        where: { code: 'FREE' },
+      })) ||
+      (await this.subscriptionPlanRepository.findOne({
+        where: { status: PlanStatus.ACTIVE },
+      }));
+
+    if (planToAssign) {
+      const now = new Date();
+      const trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
       await this.subscriptionRepository.save(
         this.subscriptionRepository.create({
           company_id: company.id,
-          plan_id: freePlan.id,
+          plan_id: planToAssign.id,
           status: SubscriptionStatus.TRIAL,
-          trial_start_at: new Date(),
+          trial_start_at: now,
           trial_end_at: trialEnd,
-          current_period_start: new Date(),
+          started_at: now,
+          current_period_start: now,
           current_period_end: trialEnd,
         }),
       );

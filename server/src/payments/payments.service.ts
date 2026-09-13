@@ -26,6 +26,8 @@ import { CreatePaymentOrderDto } from './dto/create-payment-order.dto.js';
 import { VerifyPaymentDto } from './dto/verify-payment.dto.js';
 import { PaymentQueryDto } from './dto/payment-query.dto.js';
 
+import { SubscriptionsService } from '../subscriptions/subscriptions.service.js';
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -39,6 +41,7 @@ export class PaymentsService {
     private readonly planRepository: Repository<SubscriptionPlan>,
     private readonly razorpayService: RazorpayService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly subscriptionsService: SubscriptionsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -57,8 +60,10 @@ export class PaymentsService {
       );
     }
 
-    let priceStr = plan.price_monthly;
-    if (dto.billingInterval === BillingInterval.YEARLY) {
+    await this.subscriptionsService.validatePlanDowngrade(companyId, plan);
+
+    let priceStr = plan.price && parseFloat(plan.price) > 0 ? plan.price : plan.price_monthly;
+    if (dto.billingInterval === BillingInterval.YEARLY && (!plan.price || parseFloat(plan.price) === 0)) {
       priceStr = plan.price_yearly;
     }
 

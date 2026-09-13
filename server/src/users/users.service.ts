@@ -13,6 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 import { hashPassword } from '../common/utils/password.util.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service.js';
 
 @Injectable()
 export class UsersService {
@@ -22,9 +23,12 @@ export class UsersService {
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
     private readonly auditLogsService: AuditLogsService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(companyId: string, dto: CreateUserDto, actorId?: string) {
+    await this.subscriptionsService.validateUserLimit(companyId);
+
     const existingEmail = await this.userRepository.findOne({
       where: { email: dto.email },
     });
@@ -159,6 +163,10 @@ export class UsersService {
 
     if (dto.status === UserStatus.INACTIVE && user.role && user.role.name.toLowerCase().includes('owner')) {
       await this.ensureNotLastOwner(companyId, user.id);
+    }
+
+    if (dto.status === UserStatus.ACTIVE && user.status !== UserStatus.ACTIVE) {
+      await this.subscriptionsService.validateUserLimit(companyId);
     }
 
     user.status = dto.status;
