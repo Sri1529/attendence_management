@@ -100,6 +100,7 @@ export default function AttendancePage() {
       remarks: string;
       isLocked: boolean;
       leaveTypeName?: string;
+      skip: boolean;
     }>
   >([]);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
@@ -446,6 +447,7 @@ export default function AttendancePage() {
             remarks: matchingAtt?.remarks || "Approved Leave",
             isLocked: true,
             leaveTypeName,
+            skip: false,
           };
         }
 
@@ -454,6 +456,7 @@ export default function AttendancePage() {
           status: matchingAtt?.status || AttendanceStatus.PRESENT,
           remarks: matchingAtt?.remarks || "",
           isLocked: false,
+          skip: false,
         };
       });
 
@@ -496,6 +499,15 @@ export default function AttendancePage() {
     });
   };
 
+  const handleBulkRowSkipChange = (index: number, skip: boolean) => {
+    setBulkRows((prev) => {
+      if (prev[index]?.isLocked) return prev;
+      const updated = [...prev];
+      updated[index] = { ...updated[index], skip };
+      return updated;
+    });
+  };
+
   const handleMarkAllPresent = () => {
     setBulkRows((prev) =>
       prev.map((row) => (row.isLocked ? row : { ...row, status: AttendanceStatus.PRESENT }))
@@ -503,7 +515,7 @@ export default function AttendancePage() {
   };
 
   const editableBulkCount = useMemo(() => {
-    return bulkRows.filter((r) => !r.isLocked).length;
+    return bulkRows.filter((r) => !r.isLocked && !r.skip).length;
   }, [bulkRows]);
 
   const handleBulkSubmit = async (e: React.FormEvent) => {
@@ -515,13 +527,8 @@ export default function AttendancePage() {
       return;
     }
 
-    const editableRows = bulkRows.filter((r) => !r.isLocked);
+    const editableRows = bulkRows.filter((r) => !r.isLocked && !r.skip);
     if (editableRows.length === 0) {
-      toast.info(
-        "Bulk Attendance Notice",
-        "All workforce employees on this date are protected by approved leave records."
-      );
-      setIsBulkOpen(false);
       return;
     }
 
@@ -1277,18 +1284,19 @@ export default function AttendancePage() {
                   <th className="px-3 py-2">Employee</th>
                   <th className="px-3 py-2 w-44">Attendance Status</th>
                   <th className="px-3 py-2">Remarks</th>
+                  <th className="px-3 py-2 text-center w-16">Skip</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {isBulkLoading ? (
                   <tr>
-                    <td colSpan={3} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={4} className="p-6 text-center text-muted-foreground">
                       Loading active employees...
                     </td>
                   </tr>
                 ) : bulkRows.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={4} className="p-6 text-center text-muted-foreground">
                       No active employees found in your company.
                     </td>
                   </tr>
@@ -1299,6 +1307,8 @@ export default function AttendancePage() {
                       className={
                         row.isLocked
                           ? "bg-amber-500/5 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
+                          : row.skip
+                          ? "opacity-60 hover:bg-secondary/30"
                           : "hover:bg-secondary/30"
                       }
                     >
@@ -1356,6 +1366,16 @@ export default function AttendancePage() {
                           }`}
                         />
                       </td>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Skip ${row.employee.first_name} ${row.employee.last_name}`}
+                          checked={row.skip}
+                          disabled={row.isLocked}
+                          onChange={(e) => handleBulkRowSkipChange(idx, e.target.checked)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer align-middle disabled:cursor-not-allowed"
+                        />
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1376,9 +1396,11 @@ export default function AttendancePage() {
               type="submit"
               variant="primary"
               isLoading={isBulkSubmitting}
-              disabled={isBulkLoading || bulkRows.length === 0}
+              disabled={isBulkLoading || editableBulkCount === 0}
             >
-              Save Bulk Attendance ({editableBulkCount})
+              {editableBulkCount > 0
+                ? `Save Bulk Attendance (${editableBulkCount})`
+                : "No employees to save"}
             </Button>
           </div>
         </form>
