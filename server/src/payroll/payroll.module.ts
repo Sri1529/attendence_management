@@ -8,6 +8,8 @@ import { EmployeeSalaryHistory } from '../salary/entities/employee-salary-histor
 import { Attendance } from '../attendance/entities/attendance.entity.js';
 import { SalaryAdjustment } from '../salary/entities/salary-adjustment.entity.js';
 import { EmployeeAdvance } from '../advances/entities/employee-advance.entity.js';
+import { EmployeeLoan } from '../loans/entities/employee-loan.entity.js';
+import { LoanRepayment } from '../loans/entities/loan-repayment.entity.js';
 import { Role } from '../roles/entities/role.entity.js';
 import { RolePermission } from '../roles/entities/role-permission.entity.js';
 import { User } from '../users/entities/user.entity.js';
@@ -26,6 +28,8 @@ import { JwtModule } from '@nestjs/jwt';
       Attendance,
       SalaryAdjustment,
       EmployeeAdvance,
+      EmployeeLoan,
+      LoanRepayment,
       Role,
       RolePermission,
       User,

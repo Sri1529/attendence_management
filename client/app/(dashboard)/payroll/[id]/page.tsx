@@ -19,6 +19,7 @@ import { Can } from "@/components/auth/can";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryParams } from "@/hooks/use-query-params";
 import { formatCurrency } from "@/lib/utils/format-currency";
+import { formatHumanDate } from "@/lib/utils/format-date";
 import { payrollApi } from "@/lib/api/payroll";
 import { employeesApi } from "@/lib/api/employees";
 import { settingsApi } from "@/lib/api/settings";
@@ -29,6 +30,8 @@ import { Employee, PaginatedResponse } from "@/types/organization";
 import { CompanySettings } from "@/types/settings";
 import { LeaveStatus } from "@/types/leave";
 import { PermissionCode } from "@/lib/permissions/codes";
+import { loansApi } from "@/lib/api/loans";
+import { EmployeeLoan, LoanStatus } from "@/types/loan";
 import {
   ArrowLeft,
   Calculator,
@@ -42,6 +45,7 @@ import {
   AlertCircle,
   ShieldCheck,
   RotateCcw,
+  Banknote,
 } from "lucide-react";
 
 export default function PayrollPeriodDetailPage({
@@ -62,6 +66,7 @@ export default function PayrollPeriodDetailPage({
   const [recordsResponse, setRecordsResponse] = useState<PaginatedResponse<PayrollRecord> | null>(null);
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [activeLoans, setActiveLoans] = useState<EmployeeLoan[]>([]);
   const [attendanceStats, setAttendanceStats] = useState<
     Record<
       string,
@@ -86,6 +91,7 @@ export default function PayrollPeriodDetailPage({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [manualDeductions, setManualDeductions] = useState<Record<string, string>>({});
+  const [loanDeductions, setLoanDeductions] = useState<Record<string, string>>({});
   const [isFinalizeOpen, setIsFinalizeOpen] = useState(false);
   const [isMarkPaidOpen, setIsMarkPaidOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
@@ -137,6 +143,10 @@ export default function PayrollPeriodDetailPage({
 
         employeesApi.list({ limit: 100 }).then((res) => {
           if (isMounted) setEmployees(res.data);
+        }).catch(() => null);
+
+        loansApi.list({ status: LoanStatus.ACTIVE, limit: 500 }).then((res) => {
+          if (isMounted) setActiveLoans(res.data);
         }).catch(() => null);
 
         Promise.allSettled([
@@ -259,6 +269,26 @@ export default function PayrollPeriodDetailPage({
     if (e) e.preventDefault();
     setGenerateError(null);
 
+    // Validate loan deductions
+    for (const loan of activeLoans) {
+      const valStr = (loanDeductions[loan.id] || "").trim();
+      if (valStr !== "") {
+        const amt = Number(valStr);
+        const outstanding = Number(loan.outstanding_amount);
+        if (isNaN(amt) || amt < 0) {
+          setGenerateError("Loan deduction must be a non-negative number.");
+          return;
+        }
+        if (amt > outstanding) {
+          const empName = loan.employee ? `${loan.employee.first_name} ${loan.employee.last_name}` : "Employee";
+          setGenerateError(
+            `Loan deduction for ${empName} cannot exceed the outstanding loan balance of ${formatCurrency(loan.outstanding_amount)}.`
+          );
+          return;
+        }
+      }
+    }
+
     const manualInputs = Object.entries(manualDeductions)
       .filter(([, amt]) => amt.trim() !== "")
       .map(([empId, amt]) => ({
@@ -266,10 +296,21 @@ export default function PayrollPeriodDetailPage({
         amount: amt.trim(),
       }));
 
+    const loanInputs = activeLoans
+      .filter((l) => {
+        const amtStr = (loanDeductions[l.id] || "").trim();
+        return amtStr !== "" && !isNaN(Number(amtStr)) && Number(amtStr) > 0;
+      })
+      .map((l) => ({
+        loanId: l.id,
+        amount: loanDeductions[l.id].trim(),
+      }));
+
     setIsGenerating(true);
     try {
       await payrollApi.generatePayroll(periodId, {
         manualAbsenceDeductions: manualInputs.length > 0 ? manualInputs : undefined,
+        loanDeductions: loanInputs.length > 0 ? loanInputs : undefined,
       });
       toast.success("Payroll Generated", "Workforce payroll calculated successfully.");
       setIsGenerateOpen(false);
@@ -705,6 +746,7 @@ export default function PayrollPeriodDetailPage({
         onClose={() => setIsGenerateOpen(false)}
         title="Generate Payroll"
         description="Calculate payroll for active employees based on salary, attendance, leaves, and policy settings."
+        size="xl"
       >
         <form onSubmit={handleGeneratePayroll} className="space-y-4">
           {generateError && (
@@ -728,7 +770,7 @@ export default function PayrollPeriodDetailPage({
             </p>
           </div>
 
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
             <h4 className="text-xs font-bold text-foreground">
               {company?.absence_deduction_mode === "MANUAL"
                 ? "Enter Manual Absence Deductions (₹ / $)"
@@ -755,7 +797,9 @@ export default function PayrollPeriodDetailPage({
                       <div className="space-y-1">
                         <div className="font-semibold text-foreground flex items-center gap-2">
                           <span>{emp.first_name} {emp.last_name}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground">({emp.employee_code})</span>
+                          <span className="text-[10px] font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                            {emp.employee_code}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge variant={absentCount > 0 ? "danger" : "neutral"} className="text-[10px] px-2 py-0.5 font-medium">
@@ -817,6 +861,128 @@ export default function PayrollPeriodDetailPage({
               })
             )}
           </div>
+
+          {activeLoans.length > 0 && (
+            <div className="space-y-3 pt-3 border-t border-border">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                  <Banknote className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-foreground">
+                    Outstanding Employee Loans ({activeLoans.length})
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Employees listed below have active outstanding loans. Select the monthly loan repayment deduction for this payroll period.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {activeLoans.map((loan) => {
+                  const empName = loan.employee ? `${loan.employee.first_name} ${loan.employee.last_name}` : "Employee";
+                  const empCode = loan.employee?.employee_code || "";
+                  const enteredVal = loanDeductions[loan.id] || "";
+                  const numericVal = Number(enteredVal.trim());
+                  const outstanding = Number(loan.outstanding_amount);
+                  const isExceeded = !isNaN(numericVal) && numericVal > outstanding;
+                  const remaining = !isNaN(numericVal) && numericVal >= 0 && numericVal <= outstanding
+                    ? outstanding - numericVal
+                    : outstanding;
+
+                  return (
+                    <div key={loan.id} className="p-4 rounded-xl bg-card border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3">
+                      {/* Header row */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="p-1 rounded-full bg-amber-500/10 text-amber-500">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="font-bold text-xs text-foreground">{empName}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                            {empCode}
+                          </span>
+                          <Badge variant="warning" className="text-[10px] font-mono whitespace-nowrap shrink-0">
+                            {loan.loan_number}
+                          </Badge>
+                        </div>
+
+                        <div className="text-[11px] font-medium text-muted-foreground">
+                          Repayment Start: <span className="text-foreground font-semibold">{loan.start_repayment_date ? formatHumanDate(loan.start_repayment_date) : "—"}</span>
+                        </div>
+                      </div>
+
+                      {/* Content Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center text-xs">
+                        <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/40 space-y-0.5">
+                          <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                            Original Loan
+                          </span>
+                          <span className="font-mono font-bold text-foreground">
+                            {formatCurrency(loan.principal_amount)}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-0.5">
+                          <span className="text-[10px] uppercase font-semibold text-amber-700 dark:text-amber-300 block">
+                            Current Outstanding
+                          </span>
+                          <span className="font-mono font-extrabold text-amber-800 dark:text-amber-200">
+                            {formatCurrency(loan.outstanding_amount)}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/40 space-y-0.5">
+                          <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                            Remaining After Deduction
+                          </span>
+                          <span className={`font-mono font-bold ${isExceeded ? "text-danger" : "text-foreground"}`}>
+                            {formatCurrency(remaining)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Deduction Input */}
+                      <div className="flex items-center justify-between gap-4 pt-1">
+                        <div className="text-xs">
+                          <span className="font-semibold text-foreground">This Month&apos;s Deduction:</span>
+                          <span className="text-[11px] text-muted-foreground ml-1.5">
+                            (Default: ₹0 — set amount to deduct from salary)
+                          </span>
+                        </div>
+
+                        <div className="w-44 shrink-0">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="₹0 (Default)"
+                            value={enteredVal}
+                            onChange={(e) =>
+                              setLoanDeductions((prev) => ({
+                                ...prev,
+                                [loan.id]: e.target.value,
+                              }))
+                            }
+                            className={`h-8 text-xs font-mono text-right font-bold ${
+                              isExceeded ? "border-danger focus:ring-danger bg-danger/5" : ""
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {isExceeded && (
+                        <div className="p-2 rounded-lg bg-danger/10 border border-danger/30 text-danger text-[11px] font-medium flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>Loan deduction cannot exceed the outstanding loan balance of {formatCurrency(loan.outstanding_amount)}.</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <Button

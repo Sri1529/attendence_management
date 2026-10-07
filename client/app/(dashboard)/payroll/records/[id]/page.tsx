@@ -604,6 +604,14 @@ export default function PayrollRecordBreakdownPage({
                 -{formatCurrency(record.advance_deduction)}
               </span>
             </div>
+            {Number(record.loan_deduction || 0) > 0 && (
+              <div className="flex justify-between py-1.5 border-b border-border font-medium">
+                <span className="text-primary">Loan Repayment</span>
+                <span className="font-mono font-bold text-primary">
+                  -{formatCurrency(record.loan_deduction || "0.00")}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between py-1.5 border-b border-border">
               <span className="text-muted-foreground">Other Deductions</span>
               <span className="font-mono font-semibold text-danger">

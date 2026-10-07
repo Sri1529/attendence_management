@@ -34,6 +34,11 @@ export interface AdvanceDeductionInput {
   amount: string;
 }
 
+export interface LoanDeductionInput {
+  loanId: string;
+  amount: string;
+}
+
 export interface ManualAbsenceDeductionInput {
   employeeId: string;
   amount: string;
@@ -41,6 +46,7 @@ export interface ManualAbsenceDeductionInput {
 
 export interface GeneratePayrollPayload {
   advanceDeductions?: AdvanceDeductionInput[];
+  loanDeductions?: LoanDeductionInput[];
   manualAbsenceDeductions?: ManualAbsenceDeductionInput[];
 }
 

@@ -519,6 +519,7 @@ export class PayslipsService {
         { label: 'Absence Deduction', amount: rec.absence_deduction },
         { label: 'Unpaid Leave Deduction', amount: rec.unpaid_leave_deduction },
         { label: 'Advance Deduction', amount: rec.advance_deduction },
+        { label: 'Loan Repayment', amount: rec.loan_deduction || '0.00' },
         { label: 'Other Deductions', amount: rec.other_deductions },
       ];
 

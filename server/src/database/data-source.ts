@@ -16,6 +16,8 @@ import { EmployeeSalaryHistory } from '../salary/entities/employee-salary-histor
 import { SalaryAdjustment } from '../salary/entities/salary-adjustment.entity.js';
 import { EmployeeAdvance } from '../advances/entities/employee-advance.entity.js';
 import { AdvanceRepayment } from '../advances/entities/advance-repayment.entity.js';
+import { EmployeeLoan } from '../loans/entities/employee-loan.entity.js';
+import { LoanRepayment } from '../loans/entities/loan-repayment.entity.js';
 import { PayrollPeriod } from '../payroll/entities/payroll-period.entity.js';
 import { PayrollRecord } from '../payroll/entities/payroll-record.entity.js';
 import { PayrollCorrection } from '../payroll/entities/payroll-correction.entity.js';
@@ -59,6 +61,8 @@ const AppDataSource = new DataSource({
     SalaryAdjustment,
     EmployeeAdvance,
     AdvanceRepayment,
+    EmployeeLoan,
+    LoanRepayment,
     PayrollPeriod,
     PayrollRecord,
     PayrollCorrection,

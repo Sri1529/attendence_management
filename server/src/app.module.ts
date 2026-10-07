@@ -21,6 +21,8 @@ import { EmployeeSalaryHistory } from './salary/entities/employee-salary-history
 import { SalaryAdjustment } from './salary/entities/salary-adjustment.entity.js';
 import { EmployeeAdvance } from './advances/entities/employee-advance.entity.js';
 import { AdvanceRepayment } from './advances/entities/advance-repayment.entity.js';
+import { EmployeeLoan } from './loans/entities/employee-loan.entity.js';
+import { LoanRepayment } from './loans/entities/loan-repayment.entity.js';
 import { PayrollPeriod } from './payroll/entities/payroll-period.entity.js';
 import { PayrollRecord } from './payroll/entities/payroll-record.entity.js';
 import { PayrollCorrection } from './payroll/entities/payroll-correction.entity.js';
@@ -43,6 +45,7 @@ import { LeaveTypesModule } from './leave-types/leave-types.module.js';
 import { LeaveRecordsModule } from './leave-records/leave-records.module.js';
 import { SalaryModule } from './salary/salary.module.js';
 import { AdvancesModule } from './advances/advances.module.js';
+import { LoansModule } from './loans/loans.module.js';
 import { PayrollModule } from './payroll/payroll.module.js';
 import { PayslipsModule } from './payslips/payslips.module.js';
 import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
@@ -87,6 +90,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
           SalaryAdjustment,
           EmployeeAdvance,
           AdvanceRepayment,
+          EmployeeLoan,
+          LoanRepayment,
           PayrollPeriod,
           PayrollRecord,
           PayrollCorrection,
@@ -118,6 +123,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       EmployeeSalaryHistory,
       SalaryAdjustment,
       EmployeeAdvance,
+      EmployeeLoan,
+      LoanRepayment,
       PayrollPeriod,
       PayrollRecord,
       Payslip,
@@ -140,6 +147,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     LeaveRecordsModule,
     SalaryModule,
     AdvancesModule,
+    LoansModule,
     PayrollModule,
     PayslipsModule,
     AuditLogsModule,

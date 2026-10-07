@@ -14,6 +14,8 @@ import { Attendance, AttendanceStatus } from '../attendance/entities/attendance.
 import { SalaryAdjustment, AdjustmentStatus, AdjustmentType } from '../salary/entities/salary-adjustment.entity.js';
 import { EmployeeAdvance, AdvanceStatus } from '../advances/entities/employee-advance.entity.js';
 import { AdvanceRepayment } from '../advances/entities/advance-repayment.entity.js';
+import { EmployeeLoan, LoanStatus } from '../loans/entities/employee-loan.entity.js';
+import { LoanRepayment } from '../loans/entities/loan-repayment.entity.js';
 import { LeaveRecord, LeaveStatus } from '../leave-records/entities/leave-record.entity.js';
 import { Company, AbsenceDeductionMode } from '../companies/entities/company.entity.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
@@ -457,6 +459,42 @@ export class PayrollService {
           }
         }
 
+        let loanDeductionTotal = 0;
+        const activeLoan = await queryRunner.manager.findOne(EmployeeLoan, {
+          where: {
+            company_id: companyId,
+            employee_id: emp.id,
+            status: LoanStatus.ACTIVE,
+          },
+        });
+
+        if (activeLoan) {
+          const outstanding = parseFloat(activeLoan.outstanding_amount);
+          const empExplicitLoanDeduction = (dto.loanDeductions || []).find(
+            (item) =>
+              item &&
+              ((item.employeeId && item.employeeId === emp.id) ||
+                (item.loanId && item.loanId === activeLoan.id)),
+          );
+
+          if (empExplicitLoanDeduction) {
+            const reqAmt = parseFloat(empExplicitLoanDeduction.amount);
+            if (reqAmt < -0.001) {
+              throw new BadRequestException(
+                `Loan deduction cannot be negative for employee ${emp.first_name} ${emp.last_name}`,
+              );
+            }
+            if (reqAmt > outstanding + 0.001) {
+              throw new BadRequestException(
+                `Loan deduction cannot exceed the outstanding loan balance of ₹${outstanding.toLocaleString('en-IN')}`,
+              );
+            }
+            loanDeductionTotal = reqAmt;
+          } else {
+            loanDeductionTotal = 0;
+          }
+        }
+
         const grossSalaryNum =
           basicSalaryNum +
           overtimeAmount +
@@ -464,7 +502,7 @@ export class PayrollService {
           incentiveAmount +
           otherEarnings;
         const totalDeductionsNum =
-          absenceDeduction + unpaidLeaveDeduction + otherDeductions + advanceDeductionTotal;
+          absenceDeduction + unpaidLeaveDeduction + otherDeductions + advanceDeductionTotal + loanDeductionTotal;
         const netSalaryNum = grossSalaryNum - totalDeductionsNum;
 
         if (netSalaryNum < -0.001) {
@@ -500,6 +538,7 @@ export class PayrollService {
           existingRecord.other_earnings = otherEarnings.toFixed(2);
           existingRecord.other_deductions = otherDeductions.toFixed(2);
           existingRecord.advance_deduction = advanceDeductionTotal.toFixed(2);
+          existingRecord.loan_deduction = loanDeductionTotal.toFixed(2);
           existingRecord.gross_salary = grossSalaryNum.toFixed(2);
           existingRecord.total_deductions = totalDeductionsNum.toFixed(2);
           existingRecord.net_salary = Math.max(0, netSalaryNum).toFixed(2);
@@ -528,6 +567,7 @@ export class PayrollService {
             other_earnings: otherEarnings.toFixed(2),
             other_deductions: otherDeductions.toFixed(2),
             advance_deduction: advanceDeductionTotal.toFixed(2),
+            loan_deduction: loanDeductionTotal.toFixed(2),
             gross_salary: grossSalaryNum.toFixed(2),
             total_deductions: totalDeductionsNum.toFixed(2),
             net_salary: Math.max(0, netSalaryNum).toFixed(2),
@@ -631,6 +671,61 @@ export class PayrollService {
 
             activeAdv.status = AdvanceStatus.SETTLED;
             await queryRunner.manager.save(activeAdv);
+          }
+        }
+
+        const loanDeductNum = parseFloat(rec.loan_deduction || '0');
+        if (loanDeductNum > 0) {
+          const activeLoan = await queryRunner.manager.findOne(EmployeeLoan, {
+            where: {
+              company_id: companyId,
+              employee_id: rec.employee_id,
+              status: LoanStatus.ACTIVE,
+            },
+            lock: { mode: 'pessimistic_write' },
+          });
+
+          if (activeLoan) {
+            const prevOutstandingNum = parseFloat(activeLoan.outstanding_amount);
+            const actualRepayNum = Math.min(loanDeductNum, prevOutstandingNum);
+            const remainingNum = Math.max(0, prevOutstandingNum - actualRepayNum);
+
+            const repayment = queryRunner.manager.create(LoanRepayment, {
+              company_id: companyId,
+              loan_id: activeLoan.id,
+              employee_id: rec.employee_id,
+              payroll_record_id: rec.id,
+              repayment_amount: actualRepayNum.toFixed(2),
+              repayment_date: period.end_date,
+              previous_outstanding_amount: prevOutstandingNum.toFixed(2),
+              remaining_outstanding_amount: remainingNum.toFixed(2),
+              notes: `Loan repayment via payroll period ending ${period.end_date}`,
+              created_by: userId,
+            });
+            await queryRunner.manager.save(repayment);
+
+            activeLoan.outstanding_amount = remainingNum.toFixed(2);
+            if (remainingNum <= 0.001) {
+              activeLoan.status = LoanStatus.COMPLETED;
+              activeLoan.outstanding_amount = '0.00';
+            }
+            await queryRunner.manager.save(activeLoan);
+
+            await this.auditLogsService.logAction({
+              companyId,
+              userId,
+              action: 'LOAN_REPAYMENT_PROCESSED',
+              entityType: 'LOAN',
+              entityId: activeLoan.id,
+              metadata: {
+                employeeId: rec.employee_id,
+                payrollPeriodId: period.id,
+                repaymentAmount: actualRepayNum.toFixed(2),
+                previousOutstanding: prevOutstandingNum.toFixed(2),
+                remainingOutstanding: remainingNum.toFixed(2),
+              },
+              entityManager: queryRunner.manager,
+            });
           }
         }
 

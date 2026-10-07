@@ -99,6 +99,9 @@ export class PayrollRecord {
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   advance_deduction!: string;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  loan_deduction!: string;
+
   @Column({ type: 'varchar', length: 20, default: 'AUTOMATIC' })
   absence_deduction_mode!: string;
 

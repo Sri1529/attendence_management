@@ -400,6 +400,12 @@ export default function PayslipDetailPage({
                   <span className="text-muted-foreground">Advance Deduction</span>
                   <span className="font-mono font-semibold text-foreground">{formatCurrency(rec.advance_deduction, currencyCode)}</span>
                 </div>
+                {Number(rec.loan_deduction || 0) > 0 && (
+                  <div className="flex justify-between py-1 print:py-0.5 border-b border-border/60">
+                    <span className="text-muted-foreground font-semibold text-primary">Loan Repayment</span>
+                    <span className="font-mono font-semibold text-foreground">{formatCurrency(rec.loan_deduction || "0.00", currencyCode)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-1 print:py-0.5 border-b border-border/60">
                   <span className="text-muted-foreground">Other Deductions</span>
                   <span className="font-mono font-semibold text-foreground">{formatCurrency(rec.other_deductions, currencyCode)}</span>

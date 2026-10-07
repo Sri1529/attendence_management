@@ -28,12 +28,32 @@ export class ManualAbsenceDeductionInputDto {
   amount!: string;
 }
 
+export class LoanDeductionInputDto {
+  @IsUUID('4')
+  @IsOptional()
+  loanId?: string;
+
+  @IsUUID('4')
+  @IsOptional()
+  employeeId?: string;
+
+  @IsNumberString()
+  @IsNotEmpty()
+  amount!: string;
+}
+
 export class GeneratePayrollDto {
   @IsArray()
   @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => AdvanceDeductionInputDto)
   advanceDeductions?: AdvanceDeductionInputDto[];
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => LoanDeductionInputDto)
+  loanDeductions?: LoanDeductionInputDto[];
 
   @IsArray()
   @IsOptional()

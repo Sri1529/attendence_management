@@ -26,6 +26,7 @@ import { attendanceApi } from "@/lib/api/attendance";
 import { leaveRecordsApi } from "@/lib/api/leave-records";
 import { salaryApi } from "@/lib/api/salary";
 import { advancesApi } from "@/lib/api/advances";
+import { loansApi } from "@/lib/api/loans";
 import { payslipsApi } from "@/lib/api/payslips";
 
 import { Employee, EmploymentStatus, PaginatedResponse } from "@/types/organization";
@@ -33,6 +34,7 @@ import { Attendance, AttendanceStatus } from "@/types/attendance";
 import { LeaveRecord, LeaveStatus } from "@/types/leave";
 import { SalaryHistory, SalaryAdjustment, AdjustmentType, AdjustmentStatus } from "@/types/salary";
 import { EmployeeAdvance, AdvanceRepayment, AdvanceStatus } from "@/types/advances";
+import { EmployeeLoan, LoanStatus } from "@/types/loan";
 import { PayrollRecord } from "@/types/payroll";
 import { Payslip } from "@/types/payslip";
 import { PermissionCode } from "@/lib/permissions/codes";
@@ -49,6 +51,7 @@ import {
   CalendarCheck2,
   CalendarDays,
   HandCoins,
+  Landmark,
   FileSpreadsheet,
   Clock,
   Plus,
@@ -79,11 +82,12 @@ export default function EmployeeDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "personal" | "attendance" | "leave" | "salary" | "advances" | "payslips"
+    "personal" | "attendance" | "leave" | "salary" | "advances" | "loans" | "payslips"
   >(() => {
     if (
       tabParam === "salary" ||
       tabParam === "advances" ||
+      tabParam === "loans" ||
       tabParam === "leave" ||
       tabParam === "attendance" ||
       tabParam === "payslips"
@@ -170,6 +174,10 @@ export default function EmployeeDetailPage({
   // Advances Tab State
   const [advances, setAdvances] = useState<EmployeeAdvance[]>([]);
   const [isAdvancesLoading, setIsAdvancesLoading] = useState(false);
+
+  // Loans Tab State
+  const [loans, setLoans] = useState<EmployeeLoan[]>([]);
+  const [isLoansLoading, setIsLoansLoading] = useState(false);
 
   // Advance Modals
   const [isIssueAdvanceOpen, setIsIssueAdvanceOpen] = useState(false);
@@ -349,6 +357,31 @@ export default function EmployeeDetailPage({
       };
     }
   }, [activeTab, advances.length, employeeId, userPermissions]);
+
+  useEffect(() => {
+    if (
+      activeTab === "loans" &&
+      hasPermission(userPermissions, PermissionCode.LOAN_VIEW) &&
+      loans.length === 0
+    ) {
+      let isMounted = true;
+      const load = async () => {
+        setIsLoansLoading(true);
+        try {
+          const res = await loansApi.getEmployeeLoans(employeeId);
+          if (isMounted) setLoans(res || []);
+        } catch {
+          // Silent error handling
+        } finally {
+          if (isMounted) setIsLoansLoading(false);
+        }
+      };
+      load();
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [activeTab, loans.length, employeeId, userPermissions]);
 
   // Lazy Fetch Payslips & Payroll History
   const loadPayslipsData = async () => {
@@ -907,6 +940,75 @@ export default function EmployeeDetailPage({
     },
   ];
 
+  const loanColumns: ColumnDef<EmployeeLoan>[] = [
+    {
+      header: "Loan No.",
+      cell: (row) => (
+        <Link
+          href={`/loans/${row.id}`}
+          className="font-mono text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+        >
+          <Landmark className="w-3.5 h-3.5" />
+          <span>{row.loan_number}</span>
+        </Link>
+      ),
+    },
+    {
+      header: "Loan Amount",
+      cell: (row) => (
+        <span className="font-semibold text-foreground">
+          {formatCurrency(parseFloat(row.principal_amount))}
+        </span>
+      ),
+    },
+    {
+      header: "Outstanding",
+      cell: (row) => (
+        <span
+          className={`font-semibold ${
+            parseFloat(row.outstanding_amount) > 0
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-emerald-600 dark:text-emerald-400"
+          }`}
+        >
+          {formatCurrency(parseFloat(row.outstanding_amount))}
+        </span>
+      ),
+    },
+    {
+      header: "Loan Date",
+      cell: (row) => (
+        <span className="text-muted-foreground text-xs">{row.loan_date}</span>
+      ),
+    },
+    {
+      header: "Status",
+      cell: (row) => (
+        <Badge
+          variant={
+            row.status === LoanStatus.ACTIVE
+              ? "warning"
+              : row.status === LoanStatus.COMPLETED
+              ? "success"
+              : "neutral"
+          }
+        >
+          {row.status}
+        </Badge>
+      ),
+    },
+    {
+      header: "Actions",
+      cell: (row) => (
+        <Link href={`/loans/${row.id}`}>
+          <Button variant="ghost" size="sm" leftIcon={<Eye className="w-3.5 h-3.5" />}>
+            Details
+          </Button>
+        </Link>
+      ),
+    },
+  ];
+
   const payslipColumns: ColumnDef<Payslip>[] = [
     {
       header: "Payslip No.",
@@ -1066,6 +1168,12 @@ export default function EmployeeDetailPage({
       label: "Salary Advances",
       icon: <HandCoins className="w-4 h-4" />,
       permission: PermissionCode.ADVANCE_VIEW,
+    },
+    {
+      id: "loans",
+      label: "Employee Loans",
+      icon: <Landmark className="w-4 h-4" />,
+      permission: PermissionCode.LOAN_VIEW,
     },
     {
       id: "payslips",
@@ -1422,6 +1530,45 @@ export default function EmployeeDetailPage({
               isLoading={isAdvancesLoading}
               emptyTitle="No salary advances found"
               emptyDescription="No advances issued for this employee."
+            />
+          </div>
+        </Can>
+      )}
+
+      {/* Employee Loans Tab */}
+      {activeTab === "loans" && (
+        <Can
+          permission={PermissionCode.LOAN_VIEW}
+          fallback={
+            <ErrorState
+              title="Access Restricted"
+              message="You do not have permission to view employee loans."
+            />
+          }
+        >
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Employee Loans</h3>
+                <p className="text-xs text-muted-foreground">
+                  View loan history and outstanding balances for this employee
+                </p>
+              </div>
+              <Can permission={PermissionCode.LOAN_CREATE}>
+                <Link href="/loans">
+                  <Button size="sm" variant="primary" leftIcon={<Plus className="w-4 h-4" />}>
+                    Issue New Loan
+                  </Button>
+                </Link>
+              </Can>
+            </div>
+
+            <DataTable
+              columns={loanColumns}
+              data={loans}
+              isLoading={isLoansLoading}
+              emptyTitle="No loans found"
+              emptyDescription="No loans issued for this employee."
             />
           </div>
         </Can>

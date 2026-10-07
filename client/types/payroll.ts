@@ -59,6 +59,7 @@ export interface PayrollRecord {
   absence_deduction_mode?: "AUTOMATIC" | "MANUAL";
   other_deductions: string;
   advance_deduction: string;
+  loan_deduction?: string;
   gross_salary: string;
   total_deductions: string;
   net_salary: string;

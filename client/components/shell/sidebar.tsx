@@ -18,6 +18,7 @@ import {
   ListTree,
   CircleDollarSign,
   HandCoins,
+  Landmark,
   Calculator,
   UserCheck,
   ShieldAlert,
@@ -121,6 +122,12 @@ export const navigationGroups: NavGroup[] = [
         href: "/advances",
         icon: <HandCoins className="w-4 h-4" />,
         permission: PermissionCode.ADVANCE_VIEW,
+      },
+      {
+        label: "Employee Loans",
+        href: "/loans",
+        icon: <Landmark className="w-4 h-4" />,
+        permission: PermissionCode.LOAN_VIEW,
       },
       {
         label: "Payroll & Payslips",
