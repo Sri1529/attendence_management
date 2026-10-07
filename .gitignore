@@ -29,3 +29,8 @@ yarn-debug.log*
 # IDE & Tooling
 .vscode/
 .idea/
+
+# Database dumps & backups
+backups/
+*.sql
+

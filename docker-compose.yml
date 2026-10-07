@@ -1,0 +1,110 @@
+services:
+  # ==============================================================
+  # Database Service — PostgreSQL 16
+  # ==============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: attendance_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-srihari}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-your_secure_db_password}
+      POSTGRES_DB: ${DATABASE_NAME:-attendence_management}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    # To expose PostgreSQL to host machine for external GUI tools (e.g., TablePlus, DBeaver), uncomment:
+    # ports:
+    #   - "${DATABASE_PORT:-5432}:5432"
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-srihari} -d ${DATABASE_NAME:-attendence_management}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==============================================================
+  # Backend API Service — NestJS + TypeORM
+  # ==============================================================
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: attendance_backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:${PORT:-4000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-4000}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-srihari}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-your_secure_db_password}
+      DATABASE_NAME: ${DATABASE_NAME:-attendence_management}
+      DATABASE_TEST_NAME: ${DATABASE_TEST_NAME:-attendence_management_test}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-your_jwt_access_secret_key_change_in_production_min32chars}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_jwt_refresh_secret_key_change_in_production_min32chars}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      RAZORPAY_CURRENCY: ${RAZORPAY_CURRENCY:-INR}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-4000}/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ==============================================================
+  # Frontend UI Service — Next.js 16 (Standalone Output)
+  # ==============================================================
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    container_name: attendance_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# ==============================================================
+# Persistent Volumes & Network Definitions
+# ==============================================================
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
