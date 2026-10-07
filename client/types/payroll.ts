@@ -1,9 +1,30 @@
 export enum PayrollPeriodStatus {
   DRAFT = "DRAFT",
   FINALIZED = "FINALIZED",
+  PARTIALLY_PAID = "PARTIALLY_PAID",
   PAID = "PAID",
   CANCELLED = "CANCELLED",
   CORRECTION_REQUIRED = "CORRECTION_REQUIRED",
+}
+
+export enum PaymentStatus {
+  UNPAID = "UNPAID",
+  PAID = "PAID",
+}
+
+export enum PaymentMethod {
+  CASH = "CASH",
+  BANK_TRANSFER = "BANK_TRANSFER",
+  UPI = "UPI",
+  OTHER = "OTHER",
+}
+
+export interface PayrollPeriodPaymentSummary {
+  paidEmployees: number;
+  unpaidEmployees: number;
+  totalEmployees: number;
+  paidAmount: string;
+  unpaidAmount: string;
 }
 
 export interface PayrollPeriod {
@@ -17,6 +38,13 @@ export interface PayrollPeriod {
   created_by?: string | null;
   finalized_at?: string | null;
   paid_at?: string | null;
+  employeeCount?: number;
+  totals?: {
+    totalGross: string;
+    totalDeductions: string;
+    totalNet: string;
+  };
+  paymentSummary?: PayrollPeriodPaymentSummary;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +94,18 @@ export interface PayrollRecord {
   calculated_at: string;
   finalized_at?: string | null;
   status: PayrollRecordStatus;
+  payment_status?: PaymentStatus | string;
+  payment_date?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  paid_at?: string | null;
+  paid_by?: string | null;
+  paid_by_user?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  } | null;
   created_at: string;
   updated_at: string;
 }

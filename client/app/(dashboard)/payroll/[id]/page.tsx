@@ -25,7 +25,7 @@ import { employeesApi } from "@/lib/api/employees";
 import { settingsApi } from "@/lib/api/settings";
 import { attendanceApi } from "@/lib/api/attendance";
 import { leaveRecordsApi } from "@/lib/api/leave-records";
-import { PayrollPeriod, PayrollPeriodStatus, PayrollRecord } from "@/types/payroll";
+import { PayrollPeriod, PayrollPeriodStatus, PayrollRecord, PayrollRecordStatus } from "@/types/payroll";
 import { Employee, PaginatedResponse } from "@/types/organization";
 import { CompanySettings } from "@/types/settings";
 import { LeaveStatus } from "@/types/leave";
@@ -101,6 +101,40 @@ export default function PayrollPeriodDetailPage({
   const [reopenReason, setReopenReason] = useState("");
   const [isReopening, setIsReopening] = useState(false);
   const [reopenError, setReopenError] = useState<string | null>(null);
+
+  // Individual Employee Mark Paid Modal State
+  const [payTargetRecord, setPayTargetRecord] = useState<PayrollRecord | null>(null);
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [paymentMethod, setPaymentMethod] = useState("BANK_TRANSFER");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [isPayingRecord, setIsPayingRecord] = useState(false);
+  const [payRecordError, setPayRecordError] = useState<string | null>(null);
+
+  const handlePayRecordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payTargetRecord) return;
+    setPayRecordError(null);
+    setIsPayingRecord(true);
+    try {
+      await payrollApi.payRecord(payTargetRecord.id, {
+        paymentDate,
+        paymentMethod,
+        paymentReference: paymentReference.trim() || undefined,
+      });
+      toast.success(
+        "Payment Recorded",
+        `Marked salary as PAID for ${payTargetRecord.employee?.first_name} ${payTargetRecord.employee?.last_name}.`
+      );
+      setPayTargetRecord(null);
+      fetchPeriodDetails();
+      fetchRecords();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to record payment.";
+      setPayRecordError(msg);
+    } finally {
+      setIsPayingRecord(false);
+    }
+  };
 
   const fetchPeriodDetails = useCallback(async () => {
     setIsLoading(true);
@@ -428,6 +462,8 @@ export default function PayrollPeriodDetailPage({
     switch (s) {
       case PayrollPeriodStatus.PAID:
         return "success";
+      case PayrollPeriodStatus.PARTIALLY_PAID:
+        return "warning";
       case PayrollPeriodStatus.FINALIZED:
         return "primary";
       case PayrollPeriodStatus.DRAFT:
@@ -496,7 +532,7 @@ export default function PayrollPeriodDetailPage({
       ),
     },
     {
-      header: "Net Salary",
+      header: "Net Payable",
       cell: (row) => (
         <span className="font-mono text-xs font-bold text-primary">
           {formatCurrency(row.net_salary)}
@@ -504,17 +540,71 @@ export default function PayrollPeriodDetailPage({
       ),
     },
     {
+      header: "Payment Status",
+      cell: (row) => {
+        const isPaid = row.payment_status === "PAID" || row.status === PayrollRecordStatus.PAID;
+        return (
+          <Badge variant={isPaid ? "success" : "neutral"} showDot>
+            {isPaid ? "PAID" : "UNPAID"}
+          </Badge>
+        );
+      },
+    },
+    {
+      header: "Payment Date",
+      cell: (row) => {
+        const isPaid = row.payment_status === "PAID" || row.status === PayrollRecordStatus.PAID;
+        if (isPaid) {
+          if (row.payment_date) return <span className="font-mono text-xs text-foreground font-medium">{row.payment_date}</span>;
+          if (row.paid_at) return <span className="font-mono text-xs text-foreground font-medium">{new Date(row.paid_at).toLocaleDateString()}</span>;
+        }
+        return <span className="text-muted-foreground text-xs">—</span>;
+      },
+    },
+    {
       header: "Action",
-      cell: (row) => (
-        <Button
-          size="sm"
-          variant="primary"
-          className="h-7 text-[11px]"
-          onClick={() => router.push(`/payroll/records/${row.id}`)}
-        >
-          Breakdown <ArrowRight className="w-3 h-3 ml-1" />
-        </Button>
-      ),
+      cell: (row) => {
+        const isPaid = row.payment_status === "PAID" || row.status === PayrollRecordStatus.PAID;
+        const canPay =
+          !isPaid &&
+          (period?.status === PayrollPeriodStatus.FINALIZED ||
+            period?.status === PayrollPeriodStatus.PARTIALLY_PAID);
+
+        return (
+          <div className="flex items-center gap-1.5">
+            {canPay && (
+              <Can permission={PermissionCode.PAYROLL_MARK_PAID}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPayTargetRecord(row);
+                    setPaymentDate(new Date().toISOString().split("T")[0]);
+                    setPaymentMethod("BANK_TRANSFER");
+                    setPaymentReference("");
+                    setPayRecordError(null);
+                  }}
+                >
+                  Mark Paid
+                </Button>
+              </Can>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px]"
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/payroll/records/${row.id}`);
+              }}
+            >
+              Breakdown <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -574,7 +664,8 @@ export default function PayrollPeriodDetailPage({
               </>
             )}
 
-            {period.status === PayrollPeriodStatus.FINALIZED && (
+            {(period.status === PayrollPeriodStatus.FINALIZED ||
+              period.status === PayrollPeriodStatus.PARTIALLY_PAID) && (
               <>
                 <Can permission={PermissionCode.PAYROLL_REOPEN_FOR_CORRECTION}>
                   <Button
@@ -598,7 +689,7 @@ export default function PayrollPeriodDetailPage({
                     leftIcon={<CheckCircle2 className="w-4 h-4" />}
                     onClick={() => setIsMarkPaidOpen(true)}
                   >
-                    Mark Paid
+                    Mark Period Paid
                   </Button>
                 </Can>
               </>
@@ -650,14 +741,14 @@ export default function PayrollPeriodDetailPage({
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Payroll has been paid and is permanently locked. No further changes, recalculations, or corrections can be made to this payroll.
+              Payroll has been fully paid and is permanently locked. No further changes, recalculations, or corrections can be made to this payroll.
             </p>
           </div>
         </div>
       )}
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      {/* Summary KPI Cards & Payment Summary (Phase 10) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -667,9 +758,43 @@ export default function PayrollPeriodDetailPage({
               <Users className="w-4 h-4 text-primary" />
             </div>
             <div className="text-2xl font-extrabold text-foreground mt-1">
-              {totalEmployees}
+              {period.paymentSummary ? `${period.paymentSummary.paidEmployees} / ${period.paymentSummary.totalEmployees}` : totalEmployees}
             </div>
-            <CardDescription>Processed employee payroll records</CardDescription>
+            <CardDescription>Paid / Total Employees</CardDescription>
+          </CardHeader>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase">
+                Paid Amount
+              </span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
+              {formatCurrency(period.paymentSummary?.paidAmount || "0")}
+            </div>
+            <CardDescription>
+              {period.paymentSummary?.paidEmployees || 0} employees paid
+            </CardDescription>
+          </CardHeader>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase">
+                Unpaid Amount
+              </span>
+              <CircleDollarSign className="w-4 h-4 text-amber-500" />
+            </div>
+            <div className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+              {formatCurrency(period.paymentSummary?.unpaidAmount || "0")}
+            </div>
+            <CardDescription>
+              {period.paymentSummary?.unpaidEmployees || 0} employees pending
+            </CardDescription>
           </CardHeader>
         </Card>
 
@@ -679,36 +804,21 @@ export default function PayrollPeriodDetailPage({
               <span className="text-xs font-semibold text-muted-foreground uppercase">
                 Payroll Status
               </span>
-              <CircleDollarSign className="w-4 h-4 text-primary" />
-            </div>
-            <div className="mt-1">
-              <Badge variant={statusBadgeVariant(period.status)} showDot className="text-sm px-3 py-1">
-                {period.status}
+              <Badge variant={statusBadgeVariant(period.status)} showDot className="text-xs">
+                {period.status === PayrollPeriodStatus.PARTIALLY_PAID ? "PARTIALLY PAID" : period.status}
               </Badge>
+            </div>
+            <div className="text-lg font-bold text-foreground mt-1">
+              {period.status === PayrollPeriodStatus.PAID
+                ? "PAID"
+                : period.status === PayrollPeriodStatus.PARTIALLY_PAID
+                ? "PARTIALLY PAID"
+                : period.status}
             </div>
             <CardDescription>
               {period.finalized_at
                 ? `Finalized on ${new Date(period.finalized_at).toLocaleDateString()}`
-                : "Awaiting finalization lock"}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase">
-                Payment State
-              </span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div className="text-base font-extrabold text-foreground mt-1">
-              {period.paid_at ? `Paid on ${new Date(period.paid_at).toLocaleDateString()}` : "Unpaid"}
-            </div>
-            <CardDescription>
-              {period.status === PayrollPeriodStatus.PAID
-                ? "Disbursements completed"
-                : "Pending payment mark"}
+                : "Awaiting finalization"}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -1153,6 +1263,109 @@ export default function PayrollPeriodDetailPage({
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Individual Employee Mark Paid Modal (Phase 5) */}
+      <Modal
+        isOpen={!!payTargetRecord}
+        onClose={() => setPayTargetRecord(null)}
+        title="Mark Salary as Paid"
+        description="Record individual salary payment details for this employee."
+        size="md"
+      >
+        {payTargetRecord && (
+          <form onSubmit={handlePayRecordSubmit} className="space-y-4">
+            {payRecordError && (
+              <div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-xs font-medium flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {payRecordError}
+              </div>
+            )}
+
+            <div className="p-3.5 rounded-lg bg-secondary/50 border border-border space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Employee:</span>
+                <span className="font-bold text-foreground">
+                  {payTargetRecord.employee?.first_name} {payTargetRecord.employee?.last_name} ({payTargetRecord.employee?.employee_code})
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Payroll Period:</span>
+                <span className="font-semibold text-foreground">
+                  {getMonthName(period.period_month)} {period.period_year}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-border/60">
+                <span className="text-muted-foreground font-medium">Net Payable:</span>
+                <span className="font-bold text-primary text-sm font-mono">
+                  {formatCurrency(payTargetRecord.net_salary)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                Payment Date <span className="text-danger">*</span>
+              </label>
+              <Input
+                type="date"
+                required
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Defaults to today, but can be changed to record past payments.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Payment Method</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+              >
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="CASH">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Payment Reference <span className="text-muted-foreground font-normal">(Optional)</span>
+              </label>
+              <Input
+                type="text"
+                placeholder="Bank TXN ID, UPI Ref, Cheque No, Voucher No, etc."
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPayTargetRecord(null)}
+                disabled={isPayingRecord}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isPayingRecord}
+                leftIcon={<CheckCircle2 className="w-4 h-4" />}
+              >
+                Confirm Payment
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </PageContainer>
   );

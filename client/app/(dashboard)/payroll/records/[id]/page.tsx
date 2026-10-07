@@ -40,6 +40,7 @@ import {
   AlertCircle,
   RotateCcw,
   ShieldCheck,
+  Banknote,
 } from "lucide-react";
 
 export default function PayrollRecordBreakdownPage({
@@ -377,6 +378,63 @@ export default function PayrollRecordBreakdownPage({
               </span>
               <div className="text-lg font-bold font-mono text-foreground">
                 {formatCurrency(record.gross_salary)}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Payment Information Section (Phase 13) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Banknote className="w-4 h-4 text-emerald-500" /> Payment Information
+          </CardTitle>
+          <CardDescription>Individual disbursement tracking and record payment status</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+            <div className="p-3 rounded-lg bg-secondary/40 border border-border space-y-1">
+              <span className="text-muted-foreground uppercase text-[10px] font-bold block">Payment Status</span>
+              <div className="flex items-center gap-2">
+                <Badge variant={record.payment_status === "PAID" || record.status === PayrollRecordStatus.PAID ? "success" : "neutral"} showDot>
+                  {record.payment_status === "PAID" || record.status === PayrollRecordStatus.PAID ? "PAID" : "UNPAID"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-secondary/40 border border-border space-y-1">
+              <span className="text-muted-foreground uppercase text-[10px] font-bold block">Payment Date</span>
+              <div className="font-semibold text-foreground font-mono">
+                {record.payment_date || (record.paid_at ? new Date(record.paid_at).toLocaleDateString() : "—")}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-secondary/40 border border-border space-y-1">
+              <span className="text-muted-foreground uppercase text-[10px] font-bold block">Payment Method</span>
+              <div className="font-semibold text-foreground">
+                {record.payment_method ? record.payment_method.replace(/_/g, " ") : "—"}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-secondary/40 border border-border space-y-1">
+              <span className="text-muted-foreground uppercase text-[10px] font-bold block">Payment Reference</span>
+              <div className="font-semibold text-foreground font-mono">
+                {record.payment_reference || "—"}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-secondary/40 border border-border space-y-1">
+              <span className="text-muted-foreground uppercase text-[10px] font-bold block">Paid By</span>
+              <div className="font-semibold text-foreground">
+                {record.paid_by_user ? `${record.paid_by_user.first_name} ${record.paid_by_user.last_name}` : record.paid_by ? "Admin" : "—"}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-secondary/40 border border-border space-y-1">
+              <span className="text-muted-foreground uppercase text-[10px] font-bold block">Paid At Timestamp</span>
+              <div className="font-semibold text-foreground font-mono">
+                {record.paid_at ? new Date(record.paid_at).toLocaleString() : "—"}
               </div>
             </div>
           </div>

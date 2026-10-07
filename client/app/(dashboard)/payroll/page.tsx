@@ -284,12 +284,16 @@ export default function PayrollPage() {
     switch (s) {
       case PayrollPeriodStatus.PAID:
         return "success";
+      case PayrollPeriodStatus.PARTIALLY_PAID:
+        return "warning";
       case PayrollPeriodStatus.FINALIZED:
         return "primary";
       case PayrollPeriodStatus.DRAFT:
-        return "warning";
-      case PayrollPeriodStatus.CANCELLED:
         return "neutral";
+      case PayrollPeriodStatus.CANCELLED:
+        return "danger";
+      case PayrollPeriodStatus.CORRECTION_REQUIRED:
+        return "warning";
       default:
         return "neutral";
     }
@@ -313,9 +317,16 @@ export default function PayrollPage() {
     {
       header: "Status",
       cell: (row) => (
-        <Badge variant={statusBadgeVariant(row.status)} showDot>
-          {row.status}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge variant={statusBadgeVariant(row.status)} showDot>
+            {row.status === PayrollPeriodStatus.PARTIALLY_PAID ? "PARTIALLY PAID" : row.status}
+          </Badge>
+          {row.paymentSummary && row.paymentSummary.totalEmployees > 0 && (
+            <span className="text-[11px] text-muted-foreground font-medium">
+              {row.paymentSummary.paidEmployees} / {row.paymentSummary.totalEmployees} employees paid
+            </span>
+          )}
+        </div>
       ),
     },
     {

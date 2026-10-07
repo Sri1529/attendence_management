@@ -23,6 +23,7 @@ import { RequestUser } from '../common/interfaces/jwt-payload.interface.js';
 import { CreatePayrollCorrectionDto } from './dto/create-payroll-correction.dto.js';
 import { ReversePayrollCorrectionDto } from './dto/reverse-payroll-correction.dto.js';
 import { ReopenPayrollPeriodDto } from './dto/reopen-payroll-period.dto.js';
+import { PayPayrollRecordDto } from './dto/pay-payroll-record.dto.js';
 
 @Controller('payroll')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -89,8 +90,24 @@ export class PayrollController {
   async markPaid(
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto?: PayPayrollRecordDto,
   ) {
-    return this.payrollService.markPaid(user.companyId, user.userId, id);
+    return this.payrollService.markPaid(user.companyId, user.userId, id, dto);
+  }
+
+  @Post('records/:id/pay')
+  @RequirePermissions(PermissionCode.PAYROLL_MARK_PAID)
+  async payRecord(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PayPayrollRecordDto,
+  ) {
+    return this.payrollService.payRecord(
+      user.companyId,
+      user.userId,
+      id,
+      dto,
+    );
   }
 
   @Post('periods/:id/reopen-for-correction')

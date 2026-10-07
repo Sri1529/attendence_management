@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { PayrollPeriod, PayrollPeriodStatus } from './entities/payroll-period.entity.js';
-import { PayrollRecord, PayrollRecordStatus } from './entities/payroll-record.entity.js';
+import { PayrollRecord, PayrollRecordStatus, PaymentStatus } from './entities/payroll-record.entity.js';
 import { PayrollCorrection, PayrollCorrectionStatus, PayrollCorrectionType } from './entities/payroll-correction.entity.js';
 import { Employee, EmploymentStatus } from '../employees/entities/employee.entity.js';
 import { EmployeeSalaryHistory } from '../salary/entities/employee-salary-history.entity.js';
@@ -26,6 +26,7 @@ import { PayrollRecordQueryDto } from './dto/payroll-record-query.dto.js';
 import { CreatePayrollCorrectionDto } from './dto/create-payroll-correction.dto.js';
 import { ReversePayrollCorrectionDto } from './dto/reverse-payroll-correction.dto.js';
 import { ReopenPayrollPeriodDto } from './dto/reopen-payroll-period.dto.js';
+import { PayPayrollRecordDto } from './dto/pay-payroll-record.dto.js';
 
 @Injectable()
 export class PayrollService {
@@ -179,6 +180,20 @@ export class PayrollService {
       .reduce((sum, r) => sum + parseFloat(r.net_salary), 0)
       .toFixed(2);
 
+    const paidRecords = records.filter(
+      (r) => r.payment_status === PaymentStatus.PAID,
+    );
+    const unpaidRecords = records.filter(
+      (r) => r.payment_status !== PaymentStatus.PAID,
+    );
+
+    const paidAmount = paidRecords
+      .reduce((sum, r) => sum + parseFloat(r.net_salary), 0)
+      .toFixed(2);
+    const unpaidAmount = unpaidRecords
+      .reduce((sum, r) => sum + parseFloat(r.net_salary), 0)
+      .toFixed(2);
+
     return {
       ...period,
       employeeCount: records.length,
@@ -186,6 +201,13 @@ export class PayrollService {
         totalGross,
         totalDeductions,
         totalNet,
+      },
+      paymentSummary: {
+        paidEmployees: paidRecords.length,
+        unpaidEmployees: unpaidRecords.length,
+        totalEmployees: records.length,
+        paidAmount,
+        unpaidAmount,
       },
     };
   }
@@ -758,7 +780,125 @@ export class PayrollService {
     }
   }
 
-  async markPaid(companyId: string, userId: string, periodId: string) {
+  async payRecord(
+    companyId: string,
+    userId: string,
+    recordId: string,
+    dto: PayPayrollRecordDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const record = await queryRunner.manager.findOne(PayrollRecord, {
+        where: { id: recordId, company_id: companyId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!record) {
+        throw new NotFoundException('Payroll record not found');
+      }
+
+      const employee = await queryRunner.manager.findOne(Employee, {
+        where: { id: record.employee_id, company_id: companyId },
+      });
+
+      const period = await queryRunner.manager.findOne(PayrollPeriod, {
+        where: { id: record.payroll_period_id, company_id: companyId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!period) {
+        throw new NotFoundException('Payroll period not found');
+      }
+
+      if (
+        period.status === PayrollPeriodStatus.DRAFT ||
+        period.status === PayrollPeriodStatus.CANCELLED ||
+        period.status === PayrollPeriodStatus.CORRECTION_REQUIRED
+      ) {
+        throw new BadRequestException(
+          'Only FINALIZED payroll records can be marked as paid',
+        );
+      }
+
+      if (
+        record.payment_status === PaymentStatus.PAID ||
+        record.status === PayrollRecordStatus.PAID
+      ) {
+        throw new BadRequestException(
+          'Employee salary has already been marked as paid.',
+        );
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const paymentDate = dto.paymentDate || todayStr;
+      const now = new Date();
+
+      record.payment_status = PaymentStatus.PAID;
+      record.status = PayrollRecordStatus.PAID;
+      record.payment_date = paymentDate;
+      record.payment_method = dto.paymentMethod || null;
+      record.payment_reference = dto.paymentReference || null;
+      record.paid_at = now;
+      record.paid_by = userId;
+      await queryRunner.manager.save(record);
+
+      const allRecords = await queryRunner.manager.find(PayrollRecord, {
+        where: { company_id: companyId, payroll_period_id: period.id },
+      });
+
+      const paidCount = allRecords.filter(
+        (r) => r.payment_status === PaymentStatus.PAID,
+      ).length;
+      const totalCount = allRecords.length;
+
+      if (paidCount === totalCount && totalCount > 0) {
+        period.status = PayrollPeriodStatus.PAID;
+        period.paid_at = now;
+      } else if (paidCount > 0) {
+        period.status = PayrollPeriodStatus.PARTIALLY_PAID;
+      }
+      await queryRunner.manager.save(period);
+
+      await this.auditLogsService.logAction({
+        companyId,
+        userId,
+        action: 'EMPLOYEE_PAYROLL_MARKED_PAID',
+        entityType: 'PAYROLL_RECORD',
+        entityId: record.id,
+        metadata: {
+          payrollRecordId: record.id,
+          employeeId: record.employee_id,
+          employeeCode: employee?.employee_code,
+          employeeName: `${employee?.first_name || ''} ${employee?.last_name || ''}`.trim(),
+          payrollPeriodId: period.id,
+          amount: record.net_salary,
+          paymentDate,
+          paymentMethod: dto.paymentMethod || null,
+          paymentReference: dto.paymentReference || null,
+          paidBy: userId,
+        },
+        entityManager: queryRunner.manager,
+      });
+
+      await queryRunner.commitTransaction();
+      return this.findOneRecord(companyId, record.id);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async markPaid(
+    companyId: string,
+    userId: string,
+    periodId: string,
+    dto?: PayPayrollRecordDto,
+  ) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -779,13 +919,19 @@ export class PayrollService {
         );
       }
 
-      if (period.status !== PayrollPeriodStatus.FINALIZED) {
+      if (
+        period.status !== PayrollPeriodStatus.FINALIZED &&
+        period.status !== PayrollPeriodStatus.PARTIALLY_PAID
+      ) {
         throw new BadRequestException(
           'Only FINALIZED payroll periods can be marked as paid',
         );
       }
 
+      const todayStr = new Date().toISOString().split('T')[0];
+      const paymentDate = dto?.paymentDate || todayStr;
       const now = new Date();
+
       period.status = PayrollPeriodStatus.PAID;
       period.paid_at = now;
       await queryRunner.manager.save(period);
@@ -795,7 +941,13 @@ export class PayrollService {
       });
 
       for (const rec of records) {
+        rec.payment_status = PaymentStatus.PAID;
         rec.status = PayrollRecordStatus.PAID;
+        if (!rec.payment_date) rec.payment_date = paymentDate;
+        if (dto?.paymentMethod && !rec.payment_method) rec.payment_method = dto.paymentMethod;
+        if (dto?.paymentReference && !rec.payment_reference) rec.payment_reference = dto.paymentReference;
+        if (!rec.paid_at) rec.paid_at = now;
+        if (!rec.paid_by) rec.paid_by = userId;
         await queryRunner.manager.save(rec);
       }
 
@@ -805,7 +957,7 @@ export class PayrollService {
         action: 'PAYROLL_MARKED_PAID',
         entityType: 'PAYROLL_PERIOD',
         entityId: periodId,
-        metadata: { recordCount: records.length },
+        metadata: { recordCount: records.length, paymentDate },
         entityManager: queryRunner.manager,
       });
 
@@ -993,7 +1145,7 @@ export class PayrollService {
   async findOneRecord(companyId: string, id: string) {
     const record = await this.recordRepository.findOne({
       where: { id, company_id: companyId },
-      relations: { employee: true, payroll_period: true },
+      relations: { employee: true, payroll_period: true, paid_by_user: true },
     });
 
     if (!record) {

@@ -96,6 +96,15 @@ export const payrollApi = {
 
   getRecord: (id: string) => api.get<PayrollRecord>(`/payroll/records/${id}`),
 
+  payRecord: (
+    id: string,
+    payload: {
+      paymentDate?: string;
+      paymentMethod?: string;
+      paymentReference?: string;
+    },
+  ) => api.post<PayrollRecord>(`/payroll/records/${id}/pay`, payload),
+
   getRecordCorrections: (id: string) =>
     api.get<PayrollRecordCorrectionsBreakdown>(`/payroll/records/${id}/corrections`),
 

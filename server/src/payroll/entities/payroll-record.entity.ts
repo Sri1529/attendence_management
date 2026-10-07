@@ -12,11 +12,24 @@ import {
 import { Company } from '../../companies/entities/company.entity.js';
 import { PayrollPeriod } from './payroll-period.entity.js';
 import { Employee } from '../../employees/entities/employee.entity.js';
+import { User } from '../../users/entities/user.entity.js';
 
 export enum PayrollRecordStatus {
   DRAFT = 'DRAFT',
   FINALIZED = 'FINALIZED',
   PAID = 'PAID',
+}
+
+export enum PaymentStatus {
+  UNPAID = 'UNPAID',
+  PAID = 'PAID',
+}
+
+export enum PaymentMethod {
+  CASH = 'CASH',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  UPI = 'UPI',
+  OTHER = 'OTHER',
 }
 
 @Entity('payroll_records')
@@ -126,6 +139,32 @@ export class PayrollRecord {
     default: PayrollRecordStatus.DRAFT,
   })
   status!: PayrollRecordStatus;
+
+  @Column({
+    type: 'enum',
+    enum: PaymentStatus,
+    default: PaymentStatus.UNPAID,
+  })
+  payment_status!: PaymentStatus;
+
+  @Column({ type: 'date', nullable: true })
+  payment_date?: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  payment_method?: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  payment_reference?: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  paid_at?: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  paid_by?: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'paid_by' })
+  paid_by_user?: User | null;
 
   @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   created_at!: Date;

@@ -15,6 +15,7 @@ import { User } from '../../users/entities/user.entity.js';
 export enum PayrollPeriodStatus {
   DRAFT = 'DRAFT',
   FINALIZED = 'FINALIZED',
+  PARTIALLY_PAID = 'PARTIALLY_PAID',
   PAID = 'PAID',
   CANCELLED = 'CANCELLED',
   CORRECTION_REQUIRED = 'CORRECTION_REQUIRED',

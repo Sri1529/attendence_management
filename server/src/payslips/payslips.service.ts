@@ -344,6 +344,15 @@ export class PayslipsService {
         .text(`Issue Date: `, 40, metaY + 42, { continued: true });
       doc.font('Helvetica').text(formatDateStr(payslip.issued_at));
 
+      const isPaid = rec.payment_status === 'PAID' || rec.status === 'PAID';
+      const paymentStatusStr = isPaid ? 'PAID' : 'UNPAID';
+      const paymentDateStr = isPaid && rec.payment_date ? formatDateStr(rec.payment_date) : (isPaid && rec.paid_at ? formatDateStr(rec.paid_at) : '—');
+
+      doc
+        .font('Helvetica-Bold')
+        .text(`Payment Status: `, 40, metaY + 56, { continued: true });
+      doc.font('Helvetica').text(`${paymentStatusStr}${isPaid && paymentDateStr !== '—' ? ` (Paid Date: ${paymentDateStr})` : ''}`);
+
       if (appliedCorrections.length > 0) {
         doc
           .fillColor('#D97706')
@@ -351,7 +360,7 @@ export class PayslipsService {
           .text(`REVISED PAYSLIP`, 400, metaY, { align: 'right' });
       }
 
-      doc.y = metaY + 62;
+      doc.y = metaY + 74;
       doc
         .strokeColor('#E5E7EB')
         .lineWidth(1)
